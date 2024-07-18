@@ -1,15 +1,28 @@
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 
 public class Main {
     public static final int COUNT_GENERATED_TEXT = 1000;
     public static final Map<Integer, Integer> sizeToFreq = new HashMap<>();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
+            Thread thread = new Thread(() -> {
+                while (!Thread.interrupted()) {
+                    synchronized (sizeToFreq) {
+                        try {
+                            sizeToFreq.wait();
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                        printResult();
+                    }
+                }
+            });
+        thread.start();
+
         for (int i = 0; i < COUNT_GENERATED_TEXT; i++) {
-            new Thread(() -> {
+            Thread thread1 = new Thread(() -> {
                 String text = generateText("abaca", 100);
                 int num = 0;
                 for (int j = 0; j < text.length(); j++) {
@@ -17,10 +30,16 @@ public class Main {
                         num++;
                     }
                 }
-                updateMap(num);
-            }).start();
+                synchronized (sizeToFreq) {
+                    updateMap(num);
+                    sizeToFreq.notify();
+                }
+            });
+            thread1.start();
+            thread1.join();
         }
-        printResult();
+        thread.interrupt();
+        thread.join();
     }
 
     public static String generateText(String letters, int length) {
@@ -32,7 +51,7 @@ public class Main {
         return text.toString();
     }
 
-    public static synchronized void updateMap(int num) {
+    public static void updateMap(int num) {
         sizeToFreq.put(num, sizeToFreq.getOrDefault(num, 0) + 1);
     }
 
